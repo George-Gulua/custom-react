@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>CustomReact</title>
+</head>
+<body>
+    <div id="root"></div>
+<script>
+function render(virtualDom, realDomRoot) {
+    const evaluatedVirtualDom = evaluate(virtualDom)
+
+    const virtualDomRoot = {
+        type: realDomRoot.tagName.toLowerCase(),
+        props: {
+            id: realDomRoot.id,
+            ...realDomRoot.attributes,
+            children: [
+                evaluatedVirtualDom
+            ]
+
+        }
+    }
+
+    sync(virtualDomRoot, realDomRoot)
+}
+
+function evaluate(virtualNode) {
+     if (typeof virtualNode !== 'object') {
+         return virtualNode
+     }
+     if (typeof virtualNode.type ===  'function') {
+         return evaluate((virtualNode.type)(virtualNode.props))
+     }
+
+     const props = virtualNode.props || {}
+
+     return {
+         ...virtualNode,
+         props: {
+             ...props,
+             children: Array.isArray(props.children) ? props.children.map(evaluate) : [evaluate(props.children)]
+         }
+     }
+}
+
+function sync (virtualNode, realNode) {
+    if (virtualNode.props) {
+        Object.entries(virtualNode.props).forEach(([name, value])=> {
+            if (name === 'children' && name === 'key') {
+                return
+            }
+            if (realNode[name] !== value) {
+                realNode[name] = value
+            }
+        })
+    }
+
+    if (virtualNode.key) {
+        realNode.dataset.key = virtualNode.key
+    }
+
+    if (typeof virtualNode !== 'object' && virtualNode !== realNode.nodeValue) {
+        realNode.nodeValue = virtualNode
+    }
+
+    const virtualChildren = virtualNode.props ? virtualNode.props.children || [] : []
+    const realChildren = realNode.childNodes
+
+    for (let i = 0; i < virtualChildren.length || i < realChildren.length; i++) {
+        const virtual = virtualChildren[i]
+        const real = realChildren[i]
+
+        if (virtual === undefined && real !== undefined) {
+            realNode.remove(real)
+        }
+
+        if (virtual !== undefined && real !== undefined && (virtual.type || '') === (real.tagName || '').toLowerCase()) {
+            sync(virtual, real)
+        }
+
+        if (virtual !== undefined && real !== undefined && (virtual.type || '') !== (real.tagName || '').toLowerCase()) {
+            const newReal = createRealNodeByVirtual(virtual)
+            sync(virtual, newReal)
+            realNode.replaceChild(newReal, real)
+        }
+
+        if (virtual !== undefined && real === undefined) {
+            const newReal = createRealNodeByVirtual(virtual)
+            sync(virtual, newReal)
+            realNode.appendChild(newReal)
+        }
+    }
+}
+
+function createRealNodeByVirtual(virtual) {
+    if (typeof virtual !== 'object') {
+        return document.createTextNode('')
+    }
+    return document.createElement(virtual.type)
+}
+
+function Header() {
+    return {
+        type: 'header',
+        props: {
+            className: 'header'.toLowerCase(),
+            children: [{
+                type: Logo,
+            }]
+        },
+    }
+}
+
+function Logo() {
+    return {
+        type: 'div',
+        props: {
+            className: 'logo',
+            children: '123'
+        },
+    }
+}
+
+render(Header(), document.getElementById('root'))
+</script>
+</body>
+</html>
